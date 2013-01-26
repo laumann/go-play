@@ -1,0 +1,13 @@
+go-play
+=======
+
+Go "project" for horsing around in Go.
+
+GOPATH
+------
+
+This directory follows the prescribed Go directory structure, not that I'm a big
+fan of it. But it seems to be the way these things should be run.
+
+Therefore to build all the "main" programs in this "project", set the GOPATH
+variable to (include) the folder in which this README resides.
