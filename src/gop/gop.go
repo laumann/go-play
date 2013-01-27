@@ -25,6 +25,18 @@ import (
 	"os"
 )
 
+import /* GF */ "gnuflag"
+
+var (
+	/* Command-line arguments */
+	help    bool
+	verbose bool
+	vcs     string
+
+	/* State */
+	path string // Could be something else
+)
+
 func initDirs() {
 	if err := os.Mkdir("src", 0775); err != nil {
 		log.Fatal(err)
@@ -39,11 +51,42 @@ func initDirs() {
 	}
 }
 
+// TODO Dry-run cmd arg
+// TODO First un-matched cmd arg is directory
+// TODO Usage String: "Usage: gop [OPTIONS] [path]"
+// TODO Save path as some sart of path representation... (File?)
 func main() {
+	flags := gnuflag.NewFlagSet("gop", gnuflag.ExitOnError)
+
+	flags.BoolVar(&help, "help", false, "Print this help message")
+	flags.BoolVar(&help, "h", false, "Print this help message")
+
+	flags.BoolVar(&verbose, "verbose", false, "Be verbose")
+	flags.BoolVar(&verbose, "v", false, "Be verbose")
+
+	flags.StringVar(&vcs, "vcs", "", "Set the version control system")
+
+	flags.Parse(true, os.Args[1:])
+
+	if help {
+		printUsage(flags)
+	}
+
+	if verbose {
+		fmt.Printf("%#v\n", os.Args)
+	}
+
+	for i, arg := range flags.Args() {
+		fmt.Printf("[%d] %s\n", i, arg)
+	}
+
+	os.Exit(0)
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	fmt.Printf("Initialising Go workspace at %s\n", cwd)
 	initDirs()
 }
