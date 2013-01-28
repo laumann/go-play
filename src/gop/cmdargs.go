@@ -1,9 +1,11 @@
 package main
 
-import "sort"
-import "bytes"
-import "fmt"
-import "os"
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"sort"
+)
 
 import "gnuflag"
 
@@ -32,19 +34,19 @@ func (f flagsByLength) Len() int {
 
 func flagWithMinus(str string) string {
 	if len(str) > 1 {
-		return "--" +  str
+		return "--" + str
 	}
 	return "-" + str
 }
 
 func printUsage(fs *gnuflag.FlagSet) {
+	fmt.Println("Usage: gop [OPTIONS] [PATH]\n")
+	fmt.Println("OPTIONS:")
+
 	flagMap := make(map[interface{}]flagsByLength)
 	fs.VisitAll(func(f *gnuflag.Flag) {
 		flagMap[f.Value] = append(flagMap[f.Value], f)
 	})
-
-	//fmt.Printf("Number of flags: %d\n", len(flagMap))
-	//fmt.Printf("%v\n", flagMap)
 
 	var sortedByName [][]*gnuflag.Flag
 	for _, f := range flagMap {
@@ -58,7 +60,9 @@ func printUsage(fs *gnuflag.FlagSet) {
 		line.Reset()
 		if len(fs) > 1 {
 			for i, f := range fs {
-				if i > 0 { line.WriteString(", ") }
+				if i > 0 {
+					line.WriteString(", ")
+				}
 				line.WriteString(flagWithMinus(f.Name))
 			}
 		} else {
@@ -71,6 +75,4 @@ func printUsage(fs *gnuflag.FlagSet) {
 		}
 		fmt.Fprintf(os.Stdout, format, line.Bytes(), fs[0].Usage)
 	}
-
-	//fmt.Printf("%v\n", sortedByName)
 }

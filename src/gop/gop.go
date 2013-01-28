@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 )
 
 import /* GF */ "gnuflag"
@@ -34,7 +35,7 @@ var (
 	vcs     string
 
 	/* State */
-	path string // Could be something else
+	dir string // Could be something else
 )
 
 func initDirs() {
@@ -51,10 +52,32 @@ func initDirs() {
 	}
 }
 
+/* TODO Resolve ~ like things */
+func setpath(args []string) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(args) == 0 {
+		dir = cwd
+		return
+	} else {
+		dir = args[0]
+	}
+
+	if path.IsAbs(dir) {
+		dir = path.Clean(args[0])
+		return
+	}
+
+	/* Path is relative */
+	dir = path.Clean(cwd + "/" + dir)
+}
+
 // TODO Dry-run cmd arg
 // TODO First un-matched cmd arg is directory
 // TODO Usage String: "Usage: gop [OPTIONS] [path]"
-// TODO Save path as some sart of path representation... (File?)
 func main() {
 	flags := gnuflag.NewFlagSet("gop", gnuflag.ExitOnError)
 
@@ -76,17 +99,12 @@ func main() {
 		fmt.Printf("%#v\n", os.Args)
 	}
 
-	for i, arg := range flags.Args() {
-		fmt.Printf("[%d] %s\n", i, arg)
+	setpath(flags.Args())
+
+	if verbose {
+		fmt.Printf("Initialising Go workspace at %s\n", dir)
 	}
 
 	os.Exit(0)
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Initialising Go workspace at %s\n", cwd)
 	initDirs()
 }
