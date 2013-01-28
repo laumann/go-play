@@ -1,14 +1,11 @@
 package envmap
 
-/**
- * Get the environment as a map[string]string
- */
-
 import (
 	"os"
 	"strings"
 )
 
+// Get the environment as a map[string]string
 func Env() map[string]string {
 	envMap := make(map[string]string)
 
