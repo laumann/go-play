@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 )
 
 import /* GF */ "gnuflag"
@@ -32,22 +33,52 @@ var (
 	/* Command-line arguments */
 	help    bool
 	verbose bool
+	version bool
 	vcs     string
 
 	/* State */
-	dir string // Could be something else
+	baseDir string // Could be something else
+	folders map[string]string
 )
 
-func initDirs() {
-	if err := os.Mkdir("src", 0775); err != nil {
+/* Supported version control systems init */
+var vcsFns = map[string]func(){
+	"git": git,
+}
+
+func git() {
+	if verbose {
+		fmt.Printf("Initialising git structure\n")
+	}
+
+	touch := func(file, data string) error {
+		f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		if _, err := f.Write([]byte(data)); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// pkg/.gitkeep
+	pkg := filepath.Join(folders["pkg"], ".gitkeep")
+	if err := touch(pkg, ""); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := os.Mkdir("pkg", 0775); err != nil {
+	// bin/.gitkeep
+	bin := filepath.Join(folders["bin"], ".gitkeep")
+	if err := touch(bin, ""); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := os.Mkdir("bin", 0775); err != nil {
+	// .gitignore
+	ignore := filepath.Join(baseDir, ".gitignore")
+	if err := touch(ignore, "bin/*\npkg/*\n"); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -60,24 +91,43 @@ func setpath(args []string) {
 	}
 
 	if len(args) == 0 {
-		dir = cwd
+		baseDir = cwd
 		return
 	} else {
-		dir = args[0]
+		baseDir = args[0]
 	}
 
-	if path.IsAbs(dir) {
-		dir = path.Clean(args[0])
+	if path.IsAbs(baseDir) {
+		baseDir = path.Clean(args[0])
 		return
 	}
 
 	/* Path is relative */
-	dir = path.Clean(cwd + "/" + dir)
+	baseDir = path.Clean(cwd + "/" + baseDir)
+}
+
+func initWorkspace() {
+	if err := os.Mkdir(baseDir, 0775); err != nil {
+		log.Fatal(err)
+	}
+
+	folders = map[string]string{
+		"src": filepath.Join(baseDir, "src"),
+		"pkg": filepath.Join(baseDir, "pkg"),
+		"bin": filepath.Join(baseDir, "bin"),
+	}
+
+	for _, folder := range folders {
+		if verbose {
+			fmt.Printf("Creating folder: %s\n", folder)
+		}
+		if err := os.Mkdir(folder, 0775); err != nil {
+			log.Fatal(err)
+		}
+	}
 }
 
 // TODO Dry-run cmd arg
-// TODO First un-matched cmd arg is directory
-// TODO Usage String: "Usage: gop [OPTIONS] [path]"
 func main() {
 	flags := gnuflag.NewFlagSet("gop", gnuflag.ExitOnError)
 
@@ -87,24 +137,30 @@ func main() {
 	flags.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flags.BoolVar(&verbose, "v", false, "Be verbose")
 
+	flags.BoolVar(&version, "version", false, "Print version and exit")
+	flags.BoolVar(&version, "V", false, "Print version and exit")
+
 	flags.StringVar(&vcs, "vcs", "", "Set the version control system")
 
 	flags.Parse(true, os.Args[1:])
 
 	if help {
 		printUsage(flags)
+		os.Exit(0)
 	}
 
-	if verbose {
-		fmt.Printf("%#v\n", os.Args)
+	if version {
+		printVersion()
+		os.Exit(0)
 	}
 
 	setpath(flags.Args())
-
 	if verbose {
-		fmt.Printf("Initialising Go workspace at %s\n", dir)
+		fmt.Printf("Initialising Go workspace at %s\n", baseDir)
 	}
+	initWorkspace()
 
-	os.Exit(0)
-	initDirs()
+	if vcsFn, ok := vcsFns[vcs]; ok {
+		vcsFn()
+	}
 }
