@@ -1,7 +1,5 @@
 package pathutil
 
-//import "log"
-
 import (
 	"bytes"
 	"os"
