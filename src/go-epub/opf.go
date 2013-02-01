@@ -1,6 +1,9 @@
 package main
 
-import "encoding/xml"
+import (
+	"encoding/xml"
+	"time"
+)
 
 type OpfPackage struct {
 	XMLName xml.Name `xml:"package"`
@@ -17,6 +20,26 @@ type OpfPackage struct {
 type metadata struct {
 	XMLName xml.Name `xml:"metadata"`
 	XmlNs   string   `xml:"xmlns:dc,attr"`
+
+	// Required
+	DcIdent   dcIdent `xml:"dc:identifier"`
+	DcTitle   string  `xml:"dc:title"`
+	DcCreator string  `xml:"dc:creator"`
+
+	DcLang  string `xml:"dc:language,omitempty"`
+	Metas   []meta
+	Comment string `xml:",comment"`
+}
+
+type dcIdent struct {
+	Id    string `xml:"id,attr"`
+	Value string `xml:",innerxml"`
+}
+
+type meta struct {
+	XMLname  xml.Name `xml:"meta"`
+	Property string   `xml:"property,attr"`
+	Value    string   `xml:",innerxml"`
 }
 
 type manifest struct {
@@ -25,11 +48,11 @@ type manifest struct {
 }
 
 type item struct {
-	XMLName   xml.Name `xml:"item"`
-	Href      string   `xml:"href,attr"`
-	Id        string   `xml:"id,attr"`
-	MediaType string   `xml:"media-type,attr"`
-	Properties string `xml:"properties,attr,omitempty"`
+	XMLName    xml.Name `xml:"item"`
+	Href       string   `xml:"href,attr"`
+	Id         string   `xml:"id,attr"`
+	MediaType  string   `xml:"media-type,attr"`
+	Properties string   `xml:"properties,attr,omitempty"`
 }
 
 type spine struct {
@@ -39,7 +62,7 @@ type spine struct {
 
 type itemref struct {
 	XMLName xml.Name `xml:"itemref"`
-	IdRef   string `xml:"idref,attr"`
+	IdRef   string   `xml:"idref,attr"`
 }
 
 func exampleOpfPackage() *OpfPackage {
@@ -48,11 +71,18 @@ func exampleOpfPackage() *OpfPackage {
 		Version: "3.0",
 		UniqId:  "hi-epub",
 		Metadata: metadata{
-			XmlNs: "http://purl.org/dc/elements/1.1",
+			XmlNs:     "http://purl.org/dc/elements/1.1",
+			DcIdent:   dcIdent{"hi-epub", "hello-epub-0.1"},
+			DcTitle:   "Hello 3Pub",
+			DcCreator: "Thomas Jespersen",
+			Metas: []meta{
+				meta{Property: "dcterms:modified", Value: time.Now().String()},
+			},
+			Comment: "FIXME: The list of meta fields shouldn't be enclosed in the <Metas> tag",
 		},
 		Manifest: manifest{
 			Items: []item{
-				item{Href: "hello.xhtml", Id: "hello", MediaType: "application/xhtml+xml"},
+				item{Href: "hello.xhtml", Id: "hello", MediaType: "application/xhtml+xml", Properties: "nav"},
 				item{Href: "lesson0.xhtml", Id: "lesson0", MediaType: "application/xhtml+xml"},
 			},
 		},
