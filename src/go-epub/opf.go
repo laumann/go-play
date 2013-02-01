@@ -26,6 +26,7 @@ type metadata struct {
 	DcTitle   string  `xml:"dc:title"`
 	DcCreator string  `xml:"dc:creator"`
 
+	// Optional
 	DcLang  string `xml:"dc:language,omitempty"`
 	Metas   []meta
 	Comment string `xml:",comment"`
@@ -37,9 +38,9 @@ type dcIdent struct {
 }
 
 type meta struct {
-	XMLname  xml.Name `xml:"meta"`
+	XMLName  xml.Name `xml:"meta"`
 	Property string   `xml:"property,attr"`
-	Value    string   `xml:",innerxml"`
+	Value    string   `xml:",chardata"` // should be ,chardata
 }
 
 type manifest struct {
@@ -77,8 +78,8 @@ func exampleOpfPackage() *OpfPackage {
 			DcCreator: "Thomas Jespersen",
 			Metas: []meta{
 				meta{Property: "dcterms:modified", Value: time.Now().String()},
+				meta{Property: "Damnation!", Value: "Mooooooh"},
 			},
-			Comment: "FIXME: The list of meta fields shouldn't be enclosed in the <Metas> tag",
 		},
 		Manifest: manifest{
 			Items: []item{
