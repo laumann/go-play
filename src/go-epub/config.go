@@ -4,9 +4,11 @@ package main
 
 type __config struct {
 	workDir string
+	epubFile string
 }
 
 // Default configuration
 var config = __config{
 	workDir: ".book", // The directory in which all the work is done...
+	epubFile: "",
 }

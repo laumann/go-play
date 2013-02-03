@@ -66,6 +66,23 @@ type itemref struct {
 	IdRef   string   `xml:"idref,attr"`
 }
 
+func emptyOpfPackage() *OpfPackage {
+	return &OpfPackage{
+		XmlNs:   "http://www.idpf.org/2007/opf",
+		Version: "3.0",
+		UniqId:  "",
+		Metadata: metadata{
+			XmlNs:     "http://purl.org/dc/elements/1.1",
+			DcIdent:   dcIdent{"", ""},
+			DcTitle:   "",
+			DcCreator: "",
+			Metas:     []meta{},
+		},
+		Manifest: manifest{Items: []item{}},
+		Spine:    spine{Itemrefs: []itemref{}},
+	}
+}
+
 func exampleOpfPackage() *OpfPackage {
 	return &OpfPackage{
 		XmlNs:   "http://www.idpf.org/2007/opf",
