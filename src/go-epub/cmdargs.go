@@ -40,7 +40,7 @@ func flagWithMinus(str string) string {
 }
 
 func printUsage(fs *gnuflag.FlagSet) {
-	fmt.Println("Usage: gop [OPTIONS] [PATH]\n")
+	fmt.Printf("Usage: %s [OPTIONS] [PATH]\n\n", PROGNAME)
 	fmt.Println("OPTIONS")
 
 	flagMap := make(map[interface{}]flagsByLength)

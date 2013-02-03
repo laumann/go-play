@@ -89,7 +89,6 @@ func main() {
 
 	book := &Book{"Thomas Jespersen", "something something dark side", []string{"chap1", "chap2"}}
 
-
 	cwd, err := initWorkDir()
 	if err != nil {
 		log.Fatal(err)
