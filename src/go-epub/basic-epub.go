@@ -3,8 +3,15 @@ package main
 import (
 	"encoding/xml"
 	"fmt"
+	"gnuflag"
 	"log"
 	"os"
+)
+
+// Global configuration variables
+var (
+	help    bool
+	version bool
 )
 
 type Book struct {
@@ -17,14 +24,6 @@ type Book struct {
 func (book *Book) process() {
 	mimetype()
 	fmt.Printf("%#v\n", book)
-}
-
-type Config struct {
-	workDir string // The directory in which all the work is done...
-}
-
-var config = Config{
-	workDir: ".book", // Default "book" directory
 }
 
 // Initialises the working directory and returns the directory from which we
@@ -45,17 +44,40 @@ func initWorkDir() (cwd string, err error) {
 	return
 }
 
-// Create working directory, remember dir to return to cd into it
-func setup() {
+func setup() *gnuflag.FlagSet {
+	flags := gnuflag.NewFlagSet(os.Args[0], gnuflag.ExitOnError)
 
+	flags.BoolVar(&help, "help", false, "Print this help message")
+	flags.BoolVar(&help, "h", false, "Print this help message")
+
+	flags.BoolVar(&version, "version", false, "Print this help message")
+	flags.BoolVar(&version, "V", false, "Print this help message")
+
+	flags.StringVar(&config.workDir, "workdir", ".book", "Set the working directory.")
+	flags.StringVar(&config.workDir, "w", ".book", "Set the working directory.")
+
+	flags.Parse(true, os.Args[1:])
+
+	return flags
 }
 
 // Since everything will eventually be packed up into a work directory, we need
 // to do some kind of working directory on all this...
 func main() {
-	opf := exampleOpfPackage()
+	flags := setup()
 
-	xml.HTMLAutoClose = []string{"item", "itemref"}
+	if help {
+		printUsage(flags)
+		os.Exit(0)
+	}
+
+	if version {
+		putVersion()
+		os.Exit(0)
+	}
+
+	opf := exampleOpfPackage()
+	xml.HTMLAutoClose = []string{"item", "itemref"} // Not sure this does anything
 
 	opfXml, err := xml.MarshalIndent(opf, "", "  ")
 	if err != nil {
@@ -67,7 +89,6 @@ func main() {
 
 	book := &Book{"Thomas Jespersen", "something something dark side", []string{"chap1", "chap2"}}
 
-	setup()
 
 	cwd, err := initWorkDir()
 	if err != nil {
