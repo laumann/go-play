@@ -1,7 +1,9 @@
 package main
 
-import "os"
-import "log"
+import (
+	"log"
+	"os"
+)
 
 const epubMimetype = "application/epub+zip"
 
