@@ -1,9 +1,10 @@
 package gocloth
 
 import (
-	//"unicode"
-	"unicode/utf8"
 	"fmt"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type stateFn func(*lexer) stateFn
@@ -33,12 +34,19 @@ const (
 // There's a difference
 const (
 	itemText itemType = iota
-	itemParBegin
+	itemPar
+	itemHeader
+	itemBlockQuote
+	itemBlockCode
+	//itemStyle
 )
 
 var itemName = map[itemType]string{
-	itemText: "TXT",
-	itemParBegin: "P",
+	itemText:       "TXT",
+	itemPar:        "P",
+	itemHeader:     "H",
+	itemBlockQuote: "BQ",
+	itemBlockCode:  "BC",
 }
 
 func (it item) String() string {
@@ -48,12 +56,13 @@ func (it item) String() string {
 const eof = -1
 
 type lexer struct {
-	input string    // the input
-	state stateFn   // The current state function
-	pos   int       // current position
-	start int       // start position of this item
-	width int       // width of last rune read from input
-	Items chan item // channel of tokens 
+	input    string    // the input
+	state    stateFn   // The current state function
+	pos      int       // current position
+	start    int       // start position of this item
+	width    int       // width of last rune read from input
+	blockTyp itemType  // 
+	Items    chan item // channel of tokens 
 }
 
 func (l *lexer) next() (r rune) {
@@ -125,52 +134,138 @@ func lexQuoted(l *lexer) stateFn {
 }
 
 func lexOutsideBlock(l *lexer) stateFn {
-	switch r := l.next(); {
-	case r == 'p':
-		return lexParBegin
-	case r == '\n':
+	switch r := l.next(); r {
+	case 'p', 'h', 'b':
+		l.backup()
+		return lexBlockHeader
+	case '\n':
 		l.ignore()
 		return lexOutsideBlock
-	case r == eof:
+	case 'f':
+		return lexFootnote
+	case eof:
 		return nil
-	default:
-		return lexParBegin
 	}
-	return lexParBegin
+	l.backup()
+	l.emit(itemPar)
+	return lexInsideBlock
 }
 
-func lexParBegin(l *lexer) stateFn {
-	l.backup()
-	p := l.pos
+func lexFootnote(l *lexer) stateFn {
+	return nil
+}
 
-	for r := l.next(); ; r = l.next() {
-		if r == '.' {
-			if l.peek() != ' ' {
-				l.backupTo(p)
-			}
-			break
-		}
-		if r == ' ' || r == '\n' || r == eof {
-			l.backupTo(p)
-			break
-		}
+// Idea: match on '{' which can contain anything, and lex in separate function
+// turning the lexer, in effect, into a recursive descent (for a bit)
+func lexBlockHeader(l *lexer) stateFn {
+	p := l.pos
+	var blockTyp itemType
+
+	r := l.next()
+	rr := l.next()
+	if r == 'h' && strings.ContainsRune("123456", rr) {
+		blockTyp = itemHeader
+	} else if r == 'b' && rr == 'q' {
+		blockTyp = itemBlockQuote
+	} else if r == 'b' && rr == 'c' {
+		blockTyp = itemBlockCode
+	} else {
+		blockTyp = itemPar
+		l.backup()
 	}
 
-	l.emit(itemParBegin)
-	if l.peek() == ' ' {
-		l.next()
+	for r := l.next(); ; r = l.next() {
+		switch r {
+		case '.':
+			if l.peek() != ' ' {
+				goto revert
+			}
+			goto emit
+		case ' ', '\n', eof:
+			goto revert
+		case '{':
+			if !lexStyle(l) {
+				goto revert
+			}
+		case '(':
+			if !lexParens(l) {
+				goto revert
+			}
+		case '[':
+			if !lexBrackets(l) {
+				goto revert
+			}
+		case '<', '>':
+			/* continue */
+		default:
+			goto revert
+		}
+	}
+revert: // Header didn't work out - output as p.
+	l.backupTo(p)
+	blockTyp = itemPar
+emit:
+	l.emit(blockTyp)
+	// TODO If the next character is a dot, then set "persistent" blockTyp
+	if l.next() == ' ' {
 		l.ignore()
+	} else {
+		l.backup()
 	}
 	return lexInsideBlock
 }
 
+func lexStyle(l *lexer) bool {
+	for r := l.next(); r != '}'; r = l.next() {
+		if r == '\n' || r == eof {
+			return false
+		}
+	}
+	return true
+}
+
+func lexParens(l *lexer) bool {
+	for r := l.next(); r != ')'; r = l.next() {
+		if r == '\n' || r == eof || r == ' ' {
+			return false
+		}
+	}
+	return true
+}
+
+func lexBrackets(l *lexer) bool {
+	r := l.next()
+	if r == ']' {
+		return false
+	}
+	for ; r == ']'; r = l.next() {
+		if r == '\n' || r == eof || r == ' ' || !unicode.IsLetter(r) {
+			return false
+		}
+	}
+	return true
+}
+
+/*
+func lexHeader(l *lexer) stateFn {
+//	l.backup()
+//	p := l.pos
+
+
+	return nil
+	//for r := l.next(); ; r = l.next() {
+//
+//	}
+}
+*/
+
 // Inside a block
 func lexInsideBlock(l *lexer) stateFn {
-	switch r := l.next(); {
-	case r == eof:
+	switch r := l.next(); r {
+	case eof:
 		l.emit(itemText)
 		return nil
-	case r == '\n':
+	case '\n':
 		return lexOutsideBlock
 	default:
 		return lexInsideBlock
