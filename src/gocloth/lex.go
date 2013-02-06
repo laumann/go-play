@@ -18,27 +18,16 @@ type itemType int
 
 type token int
 
-// Block modifiers
-const (
-	PAR token = iota // Should be in <p>...</p>
-	H1               // h1
-	H2               // h2
-	H3               // h3
-	H4               // h4
-	H5               // h5
-	H6               // h6
-	BQ               // wrap in <blockquote>...</blockquote>
-	BC               // wrap in <pre><code>...</pre></code>
-)
-
 // There's a difference
 const (
-	itemText itemType = iota
+	itemText itemType = iota	// Blocky things (Text being special)
 	itemPar
 	itemHeader
 	itemBlockQuote
 	itemBlockCode
-	//itemStyle
+	//itemStyle			// Non-blocky things
+	itemBreak
+
 )
 
 var itemName = map[itemType]string{
@@ -47,6 +36,7 @@ var itemName = map[itemType]string{
 	itemHeader:     "H",
 	itemBlockQuote: "BQ",
 	itemBlockCode:  "BC",
+	itemBreak:	"BR",
 }
 
 func (it item) String() string {
@@ -226,7 +216,7 @@ func lexStyle(l *lexer) bool {
 
 func lexParens(l *lexer) bool {
 	for r := l.next(); r != ')'; r = l.next() {
-		if r == '\n' || r == eof || r == ' ' {
+		if r == '\n' || r == eof {
 			return false
 		}
 	}
@@ -266,9 +256,24 @@ func lexInsideBlock(l *lexer) stateFn {
 		l.emit(itemText)
 		return nil
 	case '\n':
-		return lexOutsideBlock
+		l.backup()
+		l.emit(itemText)
+		l.next()
+		l.ignore()	// TODO if fold_lines { emit BR } else { l.ignore() }
+		return lexInsideJustSeenNL
 	default:
 		return lexInsideBlock
 	}
+	return lexInsideBlock
+}
+
+func lexInsideJustSeenNL(l *lexer) stateFn {
+	r := l.next()
+	if r == '\n' {
+		l.ignore()
+		return lexOutsideBlock
+	}
+	l.backup()
+	l.emit(itemBreak)
 	return lexInsideBlock
 }

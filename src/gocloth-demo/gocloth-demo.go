@@ -3,6 +3,7 @@ package main
 import "gocloth"
 import "strings"
 import "fmt"
+import "os"
 
 var pars = []string{
 	"p. foo",
@@ -50,4 +51,10 @@ func main() {
 	lexStrings(hdrs)
 	lexStrings(bqc)
 
+
+	lexComplex := []string{ "p(c#id). foo\nalso great\n\nbar" }
+	lexStrings(lexComplex)
+
+	fmt.Println("New interface!")
+	gocloth.ToHtml(os.Stdout, lexComplex[0])
 }
