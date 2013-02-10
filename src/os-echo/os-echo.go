@@ -18,7 +18,7 @@ func main() {
 	fmt.Printf("Host: %s\n", host)
 
 	fmt.Println("Environment:")
-	for key, val := range envmap.Env() {
+	for key, val := range envmap.Map() {
 		fmt.Printf("  %s=%s\n", key, val)
 	}
 }
