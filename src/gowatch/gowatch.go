@@ -6,13 +6,14 @@ package main
 
 import (
 	"fmt"
+	"gnuflag"
 	"os"
 	"path/filepath"
 	"time"
 )
 
 // We want to keep track of the folders, and look at their update times
-var goFiles map[string]os.FileInfo
+var gofiles map[string]os.FileInfo
 
 var (
 	dtw     string // dir to watch
@@ -23,54 +24,77 @@ func exit(code int) {
 	os.Exit(code)
 }
 
-func isDir(d string) bool {
+func isdir(d string) bool {
 	fp, _ := filepath.Abs(d)
 	fi, err := os.Stat(fp)
 	return err == nil && fi.IsDir()
 }
 
 // format: [yyyy-MM-dd HH:MM:SS]
-func fmtTimestamp(t time.Time) string {
+func tstamp(t time.Time) string {
 	year, month, day := t.Date()
 	hour, min, sec := t.Clock()
 	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, min, sec)
 }
 
-func isGoFile(info os.FileInfo) bool {
+func is_go_file(info os.FileInfo) bool {
 	return !info.IsDir() && filepath.Ext(info.Name()) == ".go"
 }
 
-func watch() {
-	c := time.Tick(2 * time.Second)
-	var filesChanged int
-	for now := range c {
-		filesChanged = 0
-		filepath.Walk(dtw, func(path string, info os.FileInfo, err error) error {
-			if !isGoFile(info) {
-				return nil
-			}
-
-			inf, exist := goFiles[path]
-			if !exist || info.ModTime().After(inf.ModTime()) {
-				goFiles[path] = info
-				filesChanged++
-			}
-			return nil
-		})
-		if filesChanged > 0 {
-			fmt.Printf("[%s] regeneration: %d files changed\n", fmtTimestamp(now), filesChanged)
+func walkStat(now time.Time) {
+	var nchanged = 0
+	filepath.Walk(dtw, func(path string, info os.FileInfo, err error) error {
+		if !is_go_file(info) {
+			return err
 		}
+		ninfo, exist := gofiles[path]
+		if !exist || info.ModTime().After(ninfo.ModTime()) {
+			gofiles[path] = info
+			nchanged++
+		}
+		return err
+	})
+	if nchanged > 0 {
+		fmt.Printf("[%s] regeneration: %d files changed\n", tstamp(now), nchanged)
 	}
 }
 
+// Configuration
+var (
+	help    bool
+	config  struct {
+		cmd string
+	}
+)
+
+func setup() *gnuflag.FlagSet {
+	flags := gnuflag.NewFlagSet(os.Args[0], gnuflag.ExitOnError)
+
+	flags.BoolVar(&help, "help", false, "Print this help message.")
+	flags.BoolVar(&help, "h", false, "Print this help message.")
+
+
+	flags.StringVar(&config.cmd, "command", "", "Command to execute.")
+	flags.StringVar(&config.cmd, "C", "", "Command to execute.")
+
+	flags.Parse(true, os.Args[1:])
+
+	return flags
+}
+
+// TODO Setup variable time (and command line arguments in general)
+// TODO Set up compilation
+// TODO 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Must have two arguments")
+	flags := setup()
+
+	if flags.NArg() < 1 {
+		fmt.Printf("No directory was set.")
 		exit(1)
 	}
 
-	dir := os.Args[1]
-	if !isDir(dir) {
+	dir := flags.Args()[0]
+	if !isdir(dir) {
 		fmt.Printf("'%s' is not a directory\n", dir)
 		exit(1)
 	}
@@ -78,14 +102,11 @@ func main() {
 	dtw, _ = filepath.Abs(dir)
 	fmt.Printf("Watching directory '%s'\n", dtw)
 
-	goFiles = make(map[string]os.FileInfo)
-	filepath.Walk(dtw, func(path string, info os.FileInfo, err error) error {
-		if !info.IsDir() && filepath.Ext(path) == ".go" {
-			goFiles[path] = info
-		}
-		return nil
-	})
-	fmt.Printf("%#v\n", goFiles)
+	gofiles = make(map[string]os.FileInfo)
+	walkStat(time.Now())
 
-	watch()
+	ticker := time.Tick(2 * time.Second)
+	for now := range ticker {
+		walkStat(now)
+	}
 }
