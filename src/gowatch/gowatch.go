@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"gnuflag"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 )
@@ -18,6 +19,7 @@ var gofiles map[string]os.FileInfo
 var (
 	dtw     string // dir to watch
 	timeout int
+	cmd     *exec.Cmd
 )
 
 func exit(code int) {
@@ -55,15 +57,31 @@ func walkStat(now time.Time) {
 		return err
 	})
 	if nchanged > 0 {
-		fmt.Printf("[%s] regeneration: %d files changed\n", tstamp(now), nchanged)
+		var msg, stat string
+
+		bs, err := cmd.CombinedOutput()
+		if err == nil {
+			stat = "ok"
+			msg = ""
+		} else {
+			stat = "failed"
+			msg = string(bs)
+		}
+
+		fmt.Printf("[%s] regeneration: %d files changed (%s)\n", tstamp(now), nchanged, stat)
+		fmt.Printf(msg)
+
+		// Renew
+		cmd = renewcmd(cmd) 
 	}
 }
 
 // Configuration
 var (
-	help    bool
-	config  struct {
-		cmd string
+	help   bool
+	config struct {
+		cmd  string
+		tick int // milliseconds
 	}
 )
 
@@ -73,20 +91,26 @@ func setup() *gnuflag.FlagSet {
 	flags.BoolVar(&help, "help", false, "Print this help message.")
 	flags.BoolVar(&help, "h", false, "Print this help message.")
 
-
 	flags.StringVar(&config.cmd, "command", "", "Command to execute.")
 	flags.StringVar(&config.cmd, "C", "", "Command to execute.")
+
+	flags.IntVar(&config.tick, "tick", 2000, "How often to check (milliseconds).")
+	flags.IntVar(&config.tick, "t", 2000, "How often to check (milliseconds).")
 
 	flags.Parse(true, os.Args[1:])
 
 	return flags
 }
 
-// TODO Setup variable time (and command line arguments in general)
 // TODO Set up compilation
 // TODO 
 func main() {
 	flags := setup()
+
+	if help {
+		printUsage(flags)
+		exit(0)
+	}
 
 	if flags.NArg() < 1 {
 		fmt.Printf("No directory was set.")
@@ -99,13 +123,15 @@ func main() {
 		exit(1)
 	}
 
+	cmd = preparecmd(config.cmd)
+
 	dtw, _ = filepath.Abs(dir)
 	fmt.Printf("Watching directory '%s'\n", dtw)
 
 	gofiles = make(map[string]os.FileInfo)
 	walkStat(time.Now())
 
-	ticker := time.Tick(2 * time.Second)
+	ticker := time.Tick(time.Duration(config.tick) * time.Millisecond)
 	for now := range ticker {
 		walkStat(now)
 	}
