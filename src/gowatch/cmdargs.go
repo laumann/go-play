@@ -55,7 +55,7 @@ func printUsage(fs *gnuflag.FlagSet) {
 	}
 
 	var line bytes.Buffer
-	format := "  %-15s %s\n"
+	format := "  %-13s %s\n"
 	for _, fs := range sortedByName {
 		line.Reset()
 		if len(fs) > 1 {

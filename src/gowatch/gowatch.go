@@ -39,53 +39,57 @@ func tstamp(t time.Time) string {
 	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, min, sec)
 }
 
-func is_go_file(info os.FileInfo) bool {
-	return !info.IsDir() && filepath.Ext(info.Name()) == ".go"
+func is_match_file(info os.FileInfo) bool {
+	matched, _ := filepath.Match(config.mpattern, info.Name())
+	return !info.IsDir() && matched
 }
 
 func walkStat(now time.Time) {
-	var nchanged = 0
+	nchanged := 0
 	filepath.Walk(dtw, func(path string, info os.FileInfo, err error) error {
-		if !is_go_file(info) {
+		if !is_match_file(info) {
 			return err
 		}
-		ninfo, exist := gofiles[path]
-		if !exist || info.ModTime().After(ninfo.ModTime()) {
+		ninfo, ok := gofiles[path]
+		if !ok || info.ModTime().After(ninfo.ModTime()) {
 			gofiles[path] = info
 			nchanged++
 		}
 		return err
 	})
-	if nchanged > 0 {
-		var msg, stat string
 
-		bs, err := cmd.CombinedOutput()
-		if err == nil {
-			stat = "ok"
-			msg = ""
-		} else {
-			stat = "failed"
-			msg = string(bs)
-		}
-
-		fmt.Printf("[%s] regeneration: %d files changed (%s)\n", tstamp(now), nchanged, stat)
-		fmt.Printf(msg)
-
-		// Renew
-		cmd = renewcmd(cmd) 
+	if nchanged == 0 {
+		return
 	}
+
+	var msg, stat string
+	bs, err := cmd.CombinedOutput()
+	if err == nil {
+		stat = "ok"
+		msg = ""
+	} else {
+		stat = "failed"
+		msg = string(bs)
+	}
+
+	fmt.Printf("[%s] regeneration: %d files changed (%s)\n", tstamp(now), nchanged, stat)
+	fmt.Printf(msg)
+
+	// Renew
+	cmd = renew_cmd(cmd)
 }
 
 // Configuration
 var (
 	help   bool
 	config struct {
-		cmd  string
-		tick int // milliseconds
+		cmd      string
+		tick     int // milliseconds
+		mpattern string
 	}
 )
 
-func setup() *gnuflag.FlagSet {
+func setup_flags() *gnuflag.FlagSet {
 	flags := gnuflag.NewFlagSet(os.Args[0], gnuflag.ExitOnError)
 
 	flags.BoolVar(&help, "help", false, "Print this help message.")
@@ -93,6 +97,9 @@ func setup() *gnuflag.FlagSet {
 
 	flags.StringVar(&config.cmd, "command", "", "Command to execute.")
 	flags.StringVar(&config.cmd, "C", "", "Command to execute.")
+
+	flags.StringVar(&config.mpattern, "pattern", ".go", "The pattern to use for matching files.")
+	flags.StringVar(&config.mpattern, "p", ".go", "The pattern to use for matching files.")
 
 	flags.IntVar(&config.tick, "tick", 2000, "How often to check (milliseconds).")
 	flags.IntVar(&config.tick, "t", 2000, "How often to check (milliseconds).")
@@ -102,10 +109,8 @@ func setup() *gnuflag.FlagSet {
 	return flags
 }
 
-// TODO Set up compilation
-// TODO 
 func main() {
-	flags := setup()
+	flags := setup_flags()
 
 	if help {
 		printUsage(flags)
@@ -113,7 +118,8 @@ func main() {
 	}
 
 	if flags.NArg() < 1 {
-		fmt.Printf("No directory was set.")
+		fmt.Printf("No directory was set.\n")
+		printUsage(flags)
 		exit(1)
 	}
 
@@ -123,7 +129,13 @@ func main() {
 		exit(1)
 	}
 
-	cmd = preparecmd(config.cmd)
+	cmd = prepare_cmd(config.cmd)
+
+	if _, err := filepath.Glob(config.mpattern); err != nil {
+		fmt.Printf("Provided pattern doesn't work: %s - see 'gowatch --help'\n", config.mpattern)
+		fmt.Printf("%s\n", err)
+		exit(1)
+	}
 
 	dtw, _ = filepath.Abs(dir)
 	fmt.Printf("Watching directory '%s'\n", dtw)
