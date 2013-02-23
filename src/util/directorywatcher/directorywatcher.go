@@ -58,7 +58,7 @@ func (dw *directoryWatcher) Start() {
 
 	go func() {
 		for now := range dw.ticker.C {
-			dw.walk(now)
+			dw.scan(now)
 		}
 	}()
 }
@@ -73,7 +73,7 @@ func (dw *directoryWatcher) AddObserver(observer observerFn) {
 }
 
 // The actual walking function
-func (dw *directoryWatcher) walk(at time.Time) {
+func (dw *directoryWatcher) scan(at time.Time) {
 	var changed []Event                 // The new events
 	var touched = make(map[string]bool) // path names of the files seen in a pass
 
@@ -105,7 +105,7 @@ func (dw *directoryWatcher) walk(at time.Time) {
 	}
 	for path, info := range dw.files {
 		if !touched[path] {
-			changed = append(changed, Event{Deleted, info})
+			changed = append(changed, Event{Deleted, path, info})
 			delete(dw.files, path)
 		}
 	}
@@ -124,17 +124,17 @@ func matches(pattern, name string) bool {
 	return err == nil && matched
 }
 
-// This tells us if a given file has been changed or added.
-//
-// Uses the comma-ok style to indicate whether or not a given file actually
-// changed.
+/**
+ * This tells us if a given file has been changed or added.
+ *
+ * Uses the comma-ok style to indicate whether or not a given file actually changed.
+ */
 func (dw *directoryWatcher) hasChange(path string, info os.FileInfo) (Event, bool) {
 	if oldInfo, ok := dw.files[path]; ok {
 		if info.ModTime().After(oldInfo.ModTime()) {
-			return Event{Changed, info}, true
+			return Event{Changed, path, info}, true
 		}
 		return Event{}, false
 	}
-	return Event{Added, info}, true
+	return Event{Added, path, info}, true
 }
-

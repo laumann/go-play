@@ -1,8 +1,8 @@
 package directorywatcher
 
 import (
-	"os"
 	"fmt"
+	"os"
 )
 
 type eventType int
@@ -22,11 +22,12 @@ var eventNames = map[eventType]string{
 
 // Implement Stringer
 func (e Event) String() string {
-	return fmt.Sprintf("%s %s", eventNames[e.Type], e.Name())
+	return fmt.Sprintf("%s %s", eventNames[e.Type], e.path)
 }
 
 // An event contains its type and the file involved.
 type Event struct {
 	Type eventType
+	path string
 	os.FileInfo
 }
