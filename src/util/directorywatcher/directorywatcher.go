@@ -16,8 +16,11 @@ type directoryWatcher struct {
 	// Internal details
 	path      string                 // the path being watched
 	files     map[string]os.FileInfo // Map of files watched
-	ticker    *time.Ticker
-	observers []observer // List of observers
+	ticker    *time.Ticker           // the interval timer
+	observers []observer             // List of observers
+
+	// Extra features
+	Preload bool
 }
 
 // Type of observer function - adding an observer means adding a function of this type
@@ -39,6 +42,7 @@ func New(path string) (*directoryWatcher, error) {
 
 	return &directoryWatcher{
 		Interval:  2000,
+		Pattern:   "*",
 		observers: []observer{},
 		path:      path,
 		files:     make(map[string]os.FileInfo),
@@ -110,11 +114,14 @@ func (dw *directoryWatcher) scan(at time.Time) {
 
 	// Notify observers if anything changed
 	if len(changed) > 0 {
-		for _, c := range dw.observers {
-			c <- EventsAt{at, changed}
+		if dw.Preload {
+			dw.Preload = false
+		} else {
+			for _, c := range dw.observers {
+				c <- EventsAt{at, changed}
+			}
 		}
 	}
-
 }
 
 func matches(pattern, name string) bool {
@@ -129,10 +136,7 @@ func matches(pattern, name string) bool {
  */
 func (dw *directoryWatcher) hasChange(path string, info os.FileInfo) (Event, bool) {
 	if oldInfo, ok := dw.files[path]; ok {
-		if info.ModTime().After(oldInfo.ModTime()) {
-			return Event{Changed, path, info}, true
-		}
-		return Event{}, false
+		return Event{Changed, path, info}, info.ModTime().After(oldInfo.ModTime())
 	}
 	return Event{Added, path, info}, true
 }
