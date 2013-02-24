@@ -21,6 +21,11 @@ var eventNames = map[eventType]string{
 	Deleted: "Deleted",
 }
 
+// eventType implements Stringer
+func (et eventType) String() string {
+	return eventNames[et]
+}
+
 // Implement Stringer
 func (e Event) String() string {
 	return fmt.Sprintf("%s %s", eventNames[e.Type], e.Path)
