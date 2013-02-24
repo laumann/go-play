@@ -1,4 +1,8 @@
 // import "util/directorywatcher"
+//
+// TODO Consider: DW.New(path, map[string]interface{} { "Interval": 1337, "Recursive": True })
+//      Using reflection and the given map to set (exported) properties
+// TODO Move directorywatcher to its own github repo (along with other util functions?)
 package directorywatcher
 
 import (

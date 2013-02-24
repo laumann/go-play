@@ -62,8 +62,8 @@ func walkStat(now time.Time, events []directorywatcher.Event) {
 var (
 	help   bool
 	config struct {
-		cmd      string
-		tick     uint64 // milliseconds
+		cmd  string
+		tick uint64 // milliseconds
 	}
 )
 
