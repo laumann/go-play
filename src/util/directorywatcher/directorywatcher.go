@@ -8,6 +8,12 @@ import (
 	"time"
 )
 
+// Type of observer function - adding an observer means adding a function of this type
+type Observer chan EventsAt
+
+// The directory watcher struct - note that the struct is not exported
+// (disallowing manual construct), but certain fields are (so we can set them
+// after creation).
 type directoryWatcher struct {
 	Interval  uint64 // interval in ms
 	Recursive bool   // Use filepath.Walk or filepath.Glob?
@@ -16,22 +22,30 @@ type directoryWatcher struct {
 	// Internal details
 	path      string                 // the path being watched
 	files     map[string]os.FileInfo // Map of files watched
-	ticker    *time.Ticker           // the interval timer
-	observers []observer             // List of observers
+	ticker    *time.Ticker           // The interval timer - if the ticker is != nil, then we assume that it's started
+	observers []Observer             // List of observers
 
 	// Extra features
 	Preload bool
 }
 
-// Type of observer function - adding an observer means adding a function of this type
-type observer chan EventsAt
-
 /**
- * API
+ * Usage:
+ * 
+ * import DW "util/directorywatcher"
  *
- * Ruby's directory watcher supports the following:
- *  - preload: suppress the initial added events by preloading files
- *  - '** /*.go' means all .go files found in the subtree rooted at the path
+ * func main() {
+ * 	dw := DW.New(".")
+ *	c := dw.AddNewObserver()
+ * 	dw.Start()
+ *	for {
+ *		select {
+ *		case args := <-c:
+ *			fmt.Printf("%d files changed at %s!\n", len(args.Events), args.At)
+ *		}
+ * 	}
+ * }
+ *
  */
 func New(path string) (*directoryWatcher, error) {
 	if stat, err := os.Stat(path); err != nil {
@@ -43,7 +57,7 @@ func New(path string) (*directoryWatcher, error) {
 	return &directoryWatcher{
 		Interval:  2000,
 		Pattern:   "*",
-		observers: []observer{},
+		observers: []Observer{},
 		path:      path,
 		files:     make(map[string]os.FileInfo),
 	}, nil
@@ -57,10 +71,14 @@ func (dw *directoryWatcher) Start() {
 	if dw.ticker != nil {
 		return
 	}
-	dw.ticker = time.NewTicker(time.Duration(dw.Interval) * time.Millisecond)
 	go func() {
-		for now := range dw.ticker.C {
-			dw.scan(now)
+		now := time.Now()
+		if fst := dw.scan1(); !dw.Preload {
+			dw.notify(EventsAt{now, fst})
+		}
+		dw.ticker = time.NewTicker(time.Duration(dw.Interval) * time.Millisecond)
+		for now = range dw.ticker.C {
+			dw.notify(EventsAt{now, dw.scan1()})
 		}
 	}()
 }
@@ -70,15 +88,33 @@ func (dw *directoryWatcher) Stop() {
 	dw.ticker = nil
 }
 
-func (dw *directoryWatcher) AddObserver(obs observer) {
+func NewObserver() Observer {
+	return make(Observer)
+}
+
+func (dw *directoryWatcher) AddNewObserver() Observer {
+	o := make(Observer)
+	dw.observers = append(dw.observers, o)
+	return o
+}
+
+func (dw *directoryWatcher) AddObserver(obs Observer) {
 	dw.observers = append(dw.observers, obs)
 }
 
-// The actual walking function
-func (dw *directoryWatcher) scan(at time.Time) {
-	var changed []Event              // The new events
-	touched := make(map[string]bool) // path names of the files seen in a pass
+func (dw *directoryWatcher) notify(evAt EventsAt) {
+	if len(evAt.Events) == 0 {
+		return
+	}
+	for _, ch := range dw.observers {
+		ch <- evAt
+	}
+}
 
+// The actual walking function: Scans and returns a list of events on all the
+// files that somehow changed (added, changed or deleted).
+func (dw *directoryWatcher) scan1() (changed []Event) {
+	touched := make(map[string]bool) // path names of the files seen in a pass
 	if dw.Recursive {
 		filepath.Walk(dw.path, func(path string, info os.FileInfo, err error) error {
 			if info.IsDir() || !matches(dw.Pattern, info.Name()) {
@@ -111,17 +147,7 @@ func (dw *directoryWatcher) scan(at time.Time) {
 			delete(dw.files, path)
 		}
 	}
-
-	// Notify observers if anything changed
-	if len(changed) > 0 {
-		if dw.Preload {
-			dw.Preload = false
-		} else {
-			for _, c := range dw.observers {
-				c <- EventsAt{at, changed}
-			}
-		}
-	}
+	return changed
 }
 
 func matches(pattern, name string) bool {

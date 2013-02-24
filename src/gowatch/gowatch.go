@@ -117,7 +117,7 @@ func main() {
 	dw.Recursive = true
 	dw.Pattern = "*.go"
 	dw.Interval = config.tick
-	ch := make(chan directorywatcher.EventsAt)
+	ch := directorywatcher.NewObserver() // Could just use ch := directoryWatcher.AddNewObserver()
 	dw.AddObserver(ch)
 
 	dw.Start()
