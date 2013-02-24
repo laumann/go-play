@@ -14,14 +14,14 @@ type directoryWatcher struct {
 	Pattern   string // glob pattern
 
 	// Internal details
-	observers []observerFn           // list of observers
 	path      string                 // the path being watched
 	files     map[string]os.FileInfo // Map of files watched
 	ticker    *time.Ticker
+	observers []observer // List of observers
 }
 
 // Type of observer function - adding an observer means adding a function of this type
-type observerFn func(at time.Time, args []Event)
+type observer chan []Event
 
 /**
  * API
@@ -39,7 +39,7 @@ func New(path string) (*directoryWatcher, error) {
 
 	return &directoryWatcher{
 		Interval:  2000,
-		observers: []observerFn{},
+		observers: []observer{},
 		path:      path,
 		files:     make(map[string]os.FileInfo),
 	}, nil
@@ -68,8 +68,8 @@ func (dw *directoryWatcher) Stop() {
 	dw.ticker = nil
 }
 
-func (dw *directoryWatcher) AddObserver(observer observerFn) {
-	dw.observers = append(dw.observers, observer)
+func (dw *directoryWatcher) AddObserver(obs observer) {
+	dw.observers = append(dw.observers, obs)
 }
 
 // The actual walking function
@@ -112,8 +112,8 @@ func (dw *directoryWatcher) scan(at time.Time) {
 
 	// Notify observers if anything changed
 	if len(changed) > 0 {
-		for _, obs := range dw.observers {
-			obs(at, changed)
+		for _, c := range dw.observers {
+			c <- changed
 		}
 	}
 

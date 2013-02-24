@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+	"util/directorywatcher"
 )
 
 // We want to keep track of the folders, and look at their update times
@@ -39,29 +40,7 @@ func tstamp(t time.Time) string {
 	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", year, month, day, hour, min, sec)
 }
 
-func is_match_file(info os.FileInfo) bool {
-	matched, _ := filepath.Match(config.mpattern, info.Name())
-	return !info.IsDir() && matched
-}
-
-func walkStat(now time.Time) {
-	nchanged := 0
-	filepath.Walk(dtw, func(path string, info os.FileInfo, err error) error {
-		if !is_match_file(info) {
-			return err
-		}
-		ninfo, ok := gofiles[path]
-		if !ok || info.ModTime().After(ninfo.ModTime()) {
-			gofiles[path] = info
-			nchanged++
-		}
-		return err
-	})
-
-	if nchanged == 0 {
-		return
-	}
-
+func walkStat(now time.Time, events []directorywatcher.Event) {
 	var msg, stat string
 	bs, err := cmd.CombinedOutput()
 	if err == nil {
@@ -72,7 +51,7 @@ func walkStat(now time.Time) {
 		msg = string(bs)
 	}
 
-	fmt.Printf("[%s] regeneration: %d files changed (%s)\n", tstamp(now), nchanged, stat)
+	fmt.Printf("[%s] regeneration: %d files changed (%s)\n", tstamp(now), len(events), stat)
 	fmt.Printf(msg)
 
 	// Renew
@@ -84,8 +63,7 @@ var (
 	help   bool
 	config struct {
 		cmd      string
-		tick     int // milliseconds
-		mpattern string
+		tick     uint64 // milliseconds
 	}
 )
 
@@ -98,11 +76,8 @@ func setup_flags() *gnuflag.FlagSet {
 	flags.StringVar(&config.cmd, "command", "", "Command to execute.")
 	flags.StringVar(&config.cmd, "C", "", "Command to execute.")
 
-	flags.StringVar(&config.mpattern, "pattern", ".go", "The pattern to use for matching files.")
-	flags.StringVar(&config.mpattern, "p", ".go", "The pattern to use for matching files.")
-
-	flags.IntVar(&config.tick, "tick", 2000, "How often to check (milliseconds).")
-	flags.IntVar(&config.tick, "t", 2000, "How often to check (milliseconds).")
+	flags.Uint64Var(&config.tick, "tick", 2000, "How often to check (milliseconds).")
+	flags.Uint64Var(&config.tick, "t", 2000, "How often to check (milliseconds).")
 
 	flags.Parse(true, os.Args[1:])
 
@@ -131,20 +106,25 @@ func main() {
 
 	cmd = prepare_cmd(config.cmd)
 
-	if _, err := filepath.Glob(config.mpattern); err != nil {
-		fmt.Printf("Provided pattern doesn't work: %s - see 'gowatch --help'\n", config.mpattern)
-		fmt.Printf("%s\n", err)
-		exit(1)
-	}
-
 	dtw, _ = filepath.Abs(dir)
 	fmt.Printf("Watching directory '%s'\n", dtw)
 
-	gofiles = make(map[string]os.FileInfo)
-	walkStat(time.Now())
+	dw, err := directorywatcher.New(dtw)
+	if err != nil {
+		fmt.Println(err)
+		exit(1)
+	}
+	dw.Recursive = true
+	dw.Pattern = "*.go"
+	dw.Interval = config.tick
+	ch := make(chan []directorywatcher.Event)
+	dw.AddObserver(ch)
 
-	ticker := time.Tick(time.Duration(config.tick) * time.Millisecond)
-	for now := range ticker {
-		walkStat(now)
+	dw.Start()
+	for {
+		select {
+		case events := <-ch:
+			walkStat(time.Now(), events)
+		}
 	}
 }
