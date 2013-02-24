@@ -23,13 +23,13 @@ var eventNames = map[eventType]string{
 
 // Implement Stringer
 func (e Event) String() string {
-	return fmt.Sprintf("%s %s", eventNames[e.Type], e.path)
+	return fmt.Sprintf("%s %s", eventNames[e.Type], e.Path)
 }
 
 // An event contains its type and the file involved.
 type Event struct {
 	Type eventType
-	path string
+	Path string
 	os.FileInfo
 }
 
