@@ -3,6 +3,7 @@ package directorywatcher
 import (
 	"fmt"
 	"os"
+	"time"
 )
 
 type eventType int
@@ -30,4 +31,11 @@ type Event struct {
 	Type eventType
 	path string
 	os.FileInfo
+}
+
+// EventsAt contains a list of events (one for each file that changed) and a
+// timestamp. 
+type EventsAt struct {
+	At     time.Time
+	Events []Event
 }

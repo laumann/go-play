@@ -21,7 +21,7 @@ type directoryWatcher struct {
 }
 
 // Type of observer function - adding an observer means adding a function of this type
-type observer chan []Event
+type observer chan EventsAt
 
 /**
  * API
@@ -53,9 +53,7 @@ func (dw *directoryWatcher) Start() {
 	if dw.ticker != nil {
 		return
 	}
-
 	dw.ticker = time.NewTicker(time.Duration(dw.Interval) * time.Millisecond)
-
 	go func() {
 		for now := range dw.ticker.C {
 			dw.scan(now)
@@ -74,8 +72,8 @@ func (dw *directoryWatcher) AddObserver(obs observer) {
 
 // The actual walking function
 func (dw *directoryWatcher) scan(at time.Time) {
-	var changed []Event                 // The new events
-	var touched = make(map[string]bool) // path names of the files seen in a pass
+	var changed []Event              // The new events
+	touched := make(map[string]bool) // path names of the files seen in a pass
 
 	if dw.Recursive {
 		filepath.Walk(dw.path, func(path string, info os.FileInfo, err error) error {
@@ -113,7 +111,7 @@ func (dw *directoryWatcher) scan(at time.Time) {
 	// Notify observers if anything changed
 	if len(changed) > 0 {
 		for _, c := range dw.observers {
-			c <- changed
+			c <- EventsAt{at, changed}
 		}
 	}
 

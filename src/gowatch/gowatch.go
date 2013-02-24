@@ -117,14 +117,14 @@ func main() {
 	dw.Recursive = true
 	dw.Pattern = "*.go"
 	dw.Interval = config.tick
-	ch := make(chan []directorywatcher.Event)
+	ch := make(chan directorywatcher.EventsAt)
 	dw.AddObserver(ch)
 
 	dw.Start()
 	for {
 		select {
-		case events := <-ch:
-			walkStat(time.Now(), events)
+		case eva := <-ch:
+			walkStat(eva.At, eva.Events)
 		}
 	}
 }
