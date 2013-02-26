@@ -1,7 +1,5 @@
 // import "util/directorywatcher"
 //
-// TODO Consider: DW.New(path, map[string]interface{} { "Interval": 1337, "Recursive": True })
-//      Using reflection and the given map to set (exported) properties
 // TODO Move directorywatcher to its own github repo (along with other util functions?)
 package directorywatcher
 
@@ -9,8 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 	"reflect"
+	"time"
 )
 
 // Type of observer function - adding an observer means adding a function of this type
@@ -74,14 +72,17 @@ func NewOpts(path string, opts map[string]interface{}) (*directoryWatcher, error
 		return nil, err
 	}
 
+	// Reflect - iterates over (exported) fields of directoryWatcher and
+	// sets those where a value has been provided in opts (if they are the
+	// same kind.
 	dwValue := reflect.ValueOf(dw).Elem()
 	dwTyp := dwValue.Type()
 	for i := 0; i < dwValue.NumField(); i++ {
-		field := dwValue.Field(i)
-		if !field.CanSet() {
+		if !dwValue.Field(i).CanSet() {
 			continue
 		}
 		if v, ok := opts[dwTyp.Field(i).Name]; ok {
+			field := dwValue.Field(i)
 			val := reflect.ValueOf(v)
 			if field.Kind() == val.Kind() {
 				field.Set(val)
@@ -92,16 +93,15 @@ func NewOpts(path string, opts map[string]interface{}) (*directoryWatcher, error
 
 	// Warn about unused keys
 	for k, v := range opts {
-		fmt.Println("Unused option: %s (%v)\n", k, v)
+		fmt.Printf("Unused option: %s (%v)\n", k, v)
 	}
 
 	return dw, nil
 }
 
-// Set up some sort of looping mechanism: Maybe use a goroutine with two
-// channels: 'walk' and 'stop' - receiving a message on 'walk' kicks off the
-// walking routine, passing back a list of changes on the same channel.
-// Receiving a message on 'stop' will stop the iteration
+// The watcher runs in a goroutine, sending notifications back over to the
+// attached observers (channels). Notifications are only sent if any files have
+// actually changed.
 func (dw *directoryWatcher) Start() {
 	if dw.ticker != nil {
 		return
@@ -123,6 +123,7 @@ func (dw *directoryWatcher) Stop() {
 	dw.ticker = nil
 }
 
+// We use the ticker to decide whether or not we're running.
 func (dw *directoryWatcher) Running() bool {
 	return dw.ticker != nil
 }
@@ -141,6 +142,7 @@ func (dw *directoryWatcher) AddObserver(obs Observer) {
 	dw.observers = append(dw.observers, obs)
 }
 
+// Only sends notification if the number of events is greater than zero
 func (dw *directoryWatcher) notify(evAt EventsAt) {
 	if len(evAt.Events) == 0 {
 		return
