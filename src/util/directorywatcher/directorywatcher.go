@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"reflect"
 )
 
 // Type of observer function - adding an observer means adding a function of this type
@@ -67,6 +68,36 @@ func New(path string) (*directoryWatcher, error) {
 	}, nil
 }
 
+func NewOpts(path string, opts map[string]interface{}) (*directoryWatcher, error) {
+	dw, err := New(path)
+	if err != nil {
+		return nil, err
+	}
+
+	dwValue := reflect.ValueOf(dw).Elem()
+	dwTyp := dwValue.Type()
+	for i := 0; i < dwValue.NumField(); i++ {
+		field := dwValue.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+		if v, ok := opts[dwTyp.Field(i).Name]; ok {
+			val := reflect.ValueOf(v)
+			if field.Kind() == val.Kind() {
+				field.Set(val)
+				delete(opts, dwTyp.Field(i).Name)
+			}
+		}
+	}
+
+	// Warn about unused keys
+	for k, v := range opts {
+		fmt.Println("Unused option: %s (%v)\n", k, v)
+	}
+
+	return dw, nil
+}
+
 // Set up some sort of looping mechanism: Maybe use a goroutine with two
 // channels: 'walk' and 'stop' - receiving a message on 'walk' kicks off the
 // walking routine, passing back a list of changes on the same channel.
@@ -90,6 +121,10 @@ func (dw *directoryWatcher) Start() {
 func (dw *directoryWatcher) Stop() {
 	dw.ticker.Stop()
 	dw.ticker = nil
+}
+
+func (dw *directoryWatcher) Running() bool {
+	return dw.ticker != nil
 }
 
 func NewObserver() Observer {
@@ -151,7 +186,7 @@ func (dw *directoryWatcher) scan1() (changed []Event) {
 			delete(dw.files, path)
 		}
 	}
-	return changed
+	return
 }
 
 func matches(pattern, name string) bool {

@@ -53,7 +53,7 @@ func (p *Path) IsAbs() bool {
 
 func (p *Path) StartsWith(other *Path) bool {
 	if len(p.segments) < len(other.segments) {
-		return false;
+		return false
 	}
 	for i := range other.segments {
 		if p.segments[i] != other.segments[i] {
